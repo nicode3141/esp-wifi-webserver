@@ -5,10 +5,10 @@
 #include "esp_log.h"
 #include "esp_wifi_netif.h"
 #include "esp_http_server.h"
+#include "nvs_flash.h"
 #include "sdkconfig.h"
+#include "credentials.h"
 
-#define ESP_WIFI_SSID "dmx-tool-AP"
-#define ESP_WIFI_PASSWORD "ultrasecure"
 #define ESP_WIFI_CHANNEL 1
 #define MAX_STA_CONN 2
 
@@ -19,7 +19,17 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     printf("Event nr: %ld!\n", event_id);
 }
 
-void init_soft_ap(){
+void init_nvs(){
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+    ret == ESP_ERR_NVS_NEW_VERSION_FOUND){
+        ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(ret));
+        return;
+    }
+    ESP_ERROR_CHECK(ret);
+}
+
+void init_soft_ap(softap_credentials_t *credentials){
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_ap();
@@ -32,9 +42,7 @@ void init_soft_ap(){
 
     wifi_config_t wifi_config = {
         .ap = {
-            .ssid = ESP_WIFI_SSID,
-            .ssid_len = strlen(ESP_WIFI_SSID),
-            .password = ESP_WIFI_PASSWORD,
+            .ssid_len = strlen(credentials->ssid),
             .channel = ESP_WIFI_CHANNEL,
             .max_connection = MAX_STA_CONN,
             .authmode = WIFI_AUTH_WPA2_PSK,
@@ -44,12 +52,16 @@ void init_soft_ap(){
         }
     };
 
+    strcpy((char *)wifi_config.ap.ssid, credentials->ssid);
+    strcpy((char *)wifi_config.ap.password, credentials->password);
+
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             ESP_WIFI_SSID, ESP_WIFI_PASSWORD, ESP_WIFI_CHANNEL);
+             credentials->ssid, credentials->password, ESP_WIFI_CHANNEL);
 }
 
 static esp_err_t hello_get_handler(httpd_req_t * req){
@@ -81,7 +93,20 @@ httpd_handle_t start_webserver() {
 }
 
 void app_main(void){
-    init_soft_ap();
+    init_nvs();
+    
+    softap_credentials_t ap_credentials = {0};
+    esp_err_t ret = credentials_load(&ap_credentials);
+
+    if(ret == ESP_ERR_NVS_NOT_FOUND){
+        ret = set_default_credentials(&ap_credentials);
+    } else if(ret != ESP_OK){
+        ESP_LOGE(TAG, "Failed to load wifi credentials %s", esp_err_to_name(ret));
+        return;
+    }
+
+    ESP_ERROR_CHECK(ret);
+    init_soft_ap(&ap_credentials);
 
     httpd_handle_t server = start_webserver();
 
