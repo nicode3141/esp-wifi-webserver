@@ -15,7 +15,7 @@ static char* TAG = "webserver";
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                   int32_t event_id, void* event_data){
-    printf("Event nr: %d!\n", event_id);
+    printf("Event nr: %ld\n", (long) event_id);
 }
 
 void init_nvs(){

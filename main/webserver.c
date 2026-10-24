@@ -2,10 +2,8 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_err.h"
-#include "esp_vfs_fat.h"
 #include "esp_spiffs.h"
 #include "sdkconfig.h"
-#include "soc/soc_caps.h"
 #include "esp_vfs.h"
 #include "esp_spiffs.h"
 #include "esp_http_server.h"
@@ -16,14 +14,6 @@ static const char *SPIFFS_BASE_PATH = "/spiffs";
 #define PART_LABEL "storage"
 /* Max length a file path can have on storage */
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
-/* Scratch buffer size */
-#define SCRATCH_BUFSIZE  8192
-
-struct file_server_data {
-    char base_path[ESP_VFS_PATH_MAX + 1];
-    /* Scratch buffer for temporary storage during file transfer */
-    char scratch[SCRATCH_BUFSIZE];
-};
 
 /**
  * Used to mount a base path to the virual filesystem.
@@ -70,36 +60,6 @@ esp_err_t mount_web_storage(const char* base_path){
     return ESP_OK;
 }
 
-
-/* Copies the full path into destination buffer and returns
- * pointer to path (skipping the preceding base path) */
-static const char* get_path_from_uri(char *dest, const char *base_path, const char *uri, size_t destsize)
-{
-    const size_t base_pathlen = strlen(base_path);
-    size_t pathlen = strlen(uri);
-
-    const char *quest = strchr(uri, '?');
-    if (quest) {
-        pathlen = MIN(pathlen, quest - uri);
-    }
-    const char *hash = strchr(uri, '#');
-    if (hash) {
-        pathlen = MIN(pathlen, hash - uri);
-    }
-
-    if (base_pathlen + pathlen + 1 > destsize) {
-        /* Full path string won't fit into destination buffer */
-        return NULL;
-    }
-
-    /* Construct full path (base + path) */
-    strcpy(dest, base_path);
-    strlcpy(dest + base_pathlen, uri, pathlen + 1);
-
-    /* Return pointer to path, skipping the base */
-    return dest + base_pathlen;
-}
-
 // Accepts a http request of a filepath
 // Sends the corresponding file back to the client
 static esp_err_t file_handler(httpd_req_t *req){
@@ -119,23 +79,27 @@ static esp_err_t file_handler(httpd_req_t *req){
         filename = "index.html";
         content_type = "text/html; charset=utf-8";
     } else if(uri_length == strlen("/styles.css") && strncmp(uri, "/styles.css", uri_length) == 0){
-        // Requests HTML
+        // Requests CSS
         filename = "styles.css";
         content_type = "text/css";
     } else if(uri_length == strlen("/script.js") && strncmp(uri, "/script.js", uri_length) == 0){
-        // Requests HTML
+        // Requests JS
         filename = "script.js";
         content_type = "application/javascript; charset=utf-8";
     } else if(uri_length == strlen("/favicon.svg") && strncmp(uri, "/favicon.svg", uri_length) == 0){
-        // Requests HTML
+        // Requests FAVICON
         filename = "favicon.svg";
         content_type = "image/svg+xml";
+    } else if(uri_length == strlen("/assets/chip.gif") && strncmp(uri, "/assets/chip.gif", uri_length) == 0){
+        // Requests Chip GIF
+        filename = "assets/chip.gif";
+        content_type = "image/gif";
     } else{
         httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File not found");
         return ESP_OK;
     }
 
-    // Reqest filepath
+    // Request filepath
     // Example: SPIFF_DIR/index.html
     char path[64];
     // Length of fromatted fullpath, here: SPIFF_DIR/FILENAME
@@ -172,7 +136,6 @@ static esp_err_t file_handler(httpd_req_t *req){
         ESP_LOGE(TAG, "Failed to read requested file: %s", path);
         res = ESP_FAIL;
     }
-
 
     fclose(file);
 
