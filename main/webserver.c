@@ -184,3 +184,15 @@ esp_err_t start_webserver(httpd_handle_t *server){
 
     return ESP_OK;
 }
+
+esp_err_t stop_webserver(httpd_handle_t *server){
+    if(server == NULL){
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t res = httpd_stop(server);
+
+    if(res != ESP_OK) return res;
+
+    return esp_vfs_unregister(PART_LABEL);
+}
