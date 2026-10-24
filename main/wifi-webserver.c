@@ -3,11 +3,10 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_log.h"
-#include "esp_wifi_netif.h"
 #include "esp_http_server.h"
 #include "nvs_flash.h"
-#include "sdkconfig.h"
 #include "credentials.h"
+#include "webserver.h"
 
 #define ESP_WIFI_CHANNEL 1
 #define MAX_STA_CONN 2
@@ -16,7 +15,7 @@ static char* TAG = "webserver";
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                   int32_t event_id, void* event_data){
-    printf("Event nr: %ld!\n", event_id);
+    printf("Event nr: %d!\n", event_id);
 }
 
 void init_nvs(){
@@ -77,7 +76,7 @@ static const httpd_uri_t hello_world = {
     .user_ctx = NULL
 };
 
-httpd_handle_t start_webserver() {
+httpd_handle_t start_webserver_old() {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     httpd_handle_t server = NULL;
 
@@ -108,6 +107,10 @@ void app_main(void){
     ESP_ERROR_CHECK(ret);
     init_soft_ap(&ap_credentials);
 
-    httpd_handle_t server = start_webserver();
-
+    httpd_handle_t server = NULL;
+    esp_err_t res = start_webserver(&server);
+    if(res != ESP_OK){
+        ESP_LOGE(TAG, "Failed to start webserver: %s", esp_err_to_name(res));
+        return;
+    }
 }
