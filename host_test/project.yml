@@ -1,0 +1,19 @@
+:project:
+  :name: "First test app"
+  :build_root: build
+
+:plugins:
+  :enabled:
+    - report_tests_log_factory
+
+:report_tests_log_factory:
+  :reports:
+    - cppunit
+
+:paths:
+  :source:
+    - ../main
+  :include:
+    - ../main
+  :test:
+    - test
